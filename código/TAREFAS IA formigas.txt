@@ -13,7 +13,10 @@ Euderlan:
 
 2. Gerador de resto de comida aleatório pela mesa, sofá e pia  ok
 
-3. Segundo formigueiro
+3. Formigueiro com vários tipo de formigas: ok
+ - Rainha        ok
+ - Operarias que sobe nos moveis    ok
+ - Outras que ficam apenas no chão   ok
 
 Hissa:
  4. Tipos de alimentos
