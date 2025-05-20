@@ -1,4 +1,4 @@
-; === DEFINIÇÃO DAS RAÇAS =====
+; === DEFINIÇÃO DAS RAÇAS =====LUCAS
 breed [ants ant]
 breed [frogs frog]
 
@@ -17,7 +17,7 @@ patches-own [
   movel?             ; Indica se o patch pertence a um móvel (mesa, pia, sofá etc.)
 ]
 
-; == VARIÁVEIS DOS SAPOS ==
+; == VARIÁVEIS DOS SAPOS ==LUCA
 frogs-own[
   energy              ;nível de energia atual
   hunting-radius      ;raio de detecção de formigas
