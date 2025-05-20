@@ -16,8 +16,8 @@ Euderlan:
 3. Segundo formigueiro
 
 Hissa:
- 4. Tipos de alimentos,
- 4.1. Quantidade de energia que cada alimento dá.
+ 4. Tipos de alimentos
+ 4.1. Quantidade de energia que cada alimento dá
 
 Lucas:
 5. Implementação de Predadores
