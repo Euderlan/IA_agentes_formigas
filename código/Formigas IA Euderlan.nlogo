@@ -27,15 +27,34 @@ frogs-own[
 
 to setup
   clear-all                            ; Limpa o mundo
-  set-default-shape turtles "bug"     ; Define o formato das formigas
-  create-turtles population [         ; Cria formigas
+  set-default-shape ants "bug"     ; Define o formato das formigas
+  create-ants population [         ; Cria formigas
     set size 2                        ; Define tamanho
     set color red                     ; Define cor inicial (vermelha)
   ]
   setup-patches                       ; Inicializa os patches
+
+  ;criação dos sapos
+  set-default-shape frogs "frog top"
+  create-frogs num-frogs [
+    set shape "frog top"
+    set color green
+    set size 3
+    set energy frog-energy
+    set hunting-radius frog-hunting-radius
+    ; posiciona fora do ninho
+    setxy random-xcor random-ycor
+    while [ [nest?] of patch-here ] [ setxy random-xcor random-ycor ]
+  ]
+
+
   reset-ticks                         ; Reseta o contador de tempo
 end
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; INICIALIZAÇÃO DOS PATCHES ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to setup-patches
   ask patches [
     set food-counter? false           ; Inicializa sem restos de comida
@@ -222,7 +241,7 @@ end
 
 ; === PROCEDIMENTO PRINCIPAL ===
 to go
-  ask turtles [
+  ask ants [
     if who >= ticks [ stop ]            ; sincroniza a saída das formigas do ninho com o tempo
     ifelse color = red [                ; procura por comida se não estiver carregando
       look-for-food
@@ -232,6 +251,13 @@ to go
     wiggle                              ; movimento aleatório para simular procura
     fd 1                                ; move-se para frente
   ]
+
+  ;SAPOS PREDADORES
+  ask frogs [ hunt-ants
+    lose-energy
+    reproduce-frogs
+  ]
+
   diffuse chemical (diffusion-rate / 100) ; Difusão do rastro químico
   ask patches [
     set chemical chemical * (100 - evaporation-rate) / 100 ; Evaporação
@@ -293,6 +319,7 @@ to return-to-nest
   ]
 end
 
+
 ; === MOVIMENTAÇÃO ===
 to uphill-chemical
   let scent-ahead chemical-scent-at-angle 0
@@ -345,6 +372,53 @@ to-report obstacle-ahead?
   let p patch-ahead 1
   if p = nobody [ report true ]
   report ([obstacle?] of p) and (not [pode-subir?] of p) and ([altura] of p >= 2)
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; PROCEDIMENTOS DOS SAPOS: CAÇA E REPRODUÇÃO   ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Se há formiga vermelha num raio de detecção, dirige-se a ela;
+; se colide, “come” (mata) e ganha energia.
+; Se não encontra, movimenta-se aleatoriamente.
+to hunt-ants
+  let target one-of ants with [ color = red ] in-radius hunting-radius  ; busca qualquer formiga da raça `ants` com cor vermelha dentro do raio `hunting-radius`
+
+  ifelse target != nobody [                   ; se encontrou ao menos uma formiga correta
+    face target                               ; vira-se na direção da formiga alvo
+    fd 1                                      ; avança 1 unidade em direção a ela
+
+    if any? ants-here with [ color = red ] [                      ; se agora estiver sobre uma formiga vermelha (ant-here reporta agentes no mesmo patch)
+      ask one-of ants-here with [ color = red ] [ die ]           ; escolhe uma formiga vermelha aqui e remove (simula “comer”)
+      set energy energy + 20                                      ; aumenta a energia do sapo em 20
+    ]
+  ] [
+    ; caso não tenha encontrado nenhuma formiga vermelha
+    ; gira aleatoriamente até 60° para a direita
+    rt random 60
+    lt random 60  ; e até 60° para a esquerda
+    fd 1          ; avança 1 unidade (vagueando)
+  ]
+end
+
+to lose-energy             ; A cada passo, sapo consome 1 de energia (morre se chega a zero).
+  set energy energy - 1    ; decrementa energia em 1
+  if energy <= 0 [ die ]   ; se a energia chegar a 0 ou menos, o sapo morre
+end
+
+; Quando acumula energia extra, há pequena chance de gerar descendente,
+; dividindo sua energia.
+to reproduce-frogs
+  ; condição para reprodução: energia acima de frog-energy + 20
+  ; e teste aleatório com 1% de chance
+  if energy > frog-energy + 20 and random-float 1 < 0.01 [
+    hatch-frogs 1 [              ; gera um novo sapo no mesmo patch
+      set energy frog-energy     ; o filhote inicia com energia padrão
+      rt random 360              ; gira em direção aleatória
+      fd 1                       ; anda 1 unidade para não ficar exatamente sobre o pai
+    ]
+    set energy energy / 2        ; divide a energia restante igualmente entre pai e filho
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -472,6 +546,62 @@ PENS
 "food-in-pile1" 1.0 0 -11221820 true "" "plotxy ticks sum [food] of patches with [pcolor = cyan]"
 "food-in-pile2" 1.0 0 -13791810 true "" "plotxy ticks sum [food] of patches with [pcolor = sky]"
 "food-in-pile3" 1.0 0 -13345367 true "" "plotxy ticks sum [food] of patches with [pcolor = blue]"
+
+SLIDER
+768
+12
+940
+45
+num-frogs
+num-frogs
+1
+50
+9.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+768
+51
+940
+84
+frog-energy
+frog-energy
+1
+100
+63.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+768
+88
+940
+121
+frog-hunting-radius
+frog-hunting-radius
+1
+20
+16.0
+1
+1
+NIL
+HORIZONTAL
+
+MONITOR
+770
+127
+847
+172
+NIL
+count frogs
+2
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -708,6 +838,17 @@ Circle -7500403 true true 96 51 108
 Circle -16777216 true false 113 68 74
 Polygon -10899396 true false 189 233 219 188 249 173 279 188 234 218
 Polygon -10899396 true false 180 255 150 210 105 210 75 240 135 240
+
+frog top
+true
+0
+Polygon -7500403 true true 146 18 135 30 119 42 105 90 90 150 105 195 135 225 165 225 195 195 210 150 195 90 180 41 165 30 155 18
+Polygon -7500403 true true 91 176 67 148 70 121 66 119 61 133 59 111 53 111 52 131 47 115 42 120 46 146 55 187 80 237 106 269 116 268 114 214 131 222
+Polygon -7500403 true true 185 62 234 84 223 51 226 48 234 61 235 38 240 38 243 60 252 46 255 49 244 95 188 92
+Polygon -7500403 true true 115 62 66 84 77 51 74 48 66 61 65 38 60 38 57 60 48 46 45 49 56 95 112 92
+Polygon -7500403 true true 200 186 233 148 230 121 234 119 239 133 241 111 247 111 248 131 253 115 258 120 254 146 245 187 220 237 194 269 184 268 186 214 169 222
+Circle -16777216 true false 157 38 18
+Circle -16777216 true false 125 38 18
 
 house
 false
