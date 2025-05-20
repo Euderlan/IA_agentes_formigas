@@ -20,8 +20,7 @@ patches-own [
 ; == VARIÁVEIS DOS SAPOS ==
 frogs-own[
   energy              ;nível de energia atual
-  hunting-radius      ;raio de detecção de formigas
-]
+  hunting-radius      ;raio de detecção de formig]
 
 ; === PROCEDIMENTOS DE CONFIGURAÇÃO ===
 
