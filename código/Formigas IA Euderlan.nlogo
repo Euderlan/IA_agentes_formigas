@@ -3,12 +3,15 @@ breed [queens queen]           ; Rainha do formigueiro
 breed [worker-ants worker-ant] ; Formigas operárias (podem subir em móveis)
 breed [ground-ants ground-ant] ; Formigas que só coletam comida do chão
 breed [frogs frog]
+breed [humans human]           ; Humano que derruba comida pela cozinha
+breed [meals meal]             ; Comida que é derramada pelo humano
 
 ; === DEFINIÇÃO DE VARIÁVEIS ===
 turtles-own [
   carrying-food?    ; Indica se a formiga está carregando comida
   on-fire?          ; Indica se a formiga está pegando fogo
   fire-timer        ; Controla a duração da animação de fogo
+  food-drop?        ; Indica se o humano vai deixar comida
 ]
 
 queens-own [
@@ -51,9 +54,10 @@ frogs-own[
 globals [
   total-food-collected ; Total de comida coletada pelo formigueiro
   min-ants             ; Número mínimo de formigas no formigueiro
-
-  total-food-world  ; Soma de toda comida disponível no ambiente
-  scarcity-mode?    ; Verdadeiro quando a comida está escassa
+  total-food-world     ; Soma de toda comida disponível no ambiente
+  scarcity-mode?       ; Verdadeiro quando a comida está escassa
+  human-spawn-chance   ; Chance de um humano aparecer a cada tick
+  food-drop-chance     ; Chance de um humano deixar comida
 ]
 
 ; === PROCEDIMENTOS DE CONFIGURAÇÃO ===
@@ -121,6 +125,10 @@ to setup
     set on-fire? false                    ; Inicializa como não pegando fogo
     set fire-timer 0                      ; Inicializa timer de fogo
   ]
+
+  ; Inicializa as chances para o aparecimento do humano
+    set human-spawn-chance 0.01  ; 1% de chance por tick
+    set food-drop-chance 0.8    ; 80% de chance de deixar comida
 
   reset-ticks                             ; Reseta o contador de tempo
 end
@@ -314,7 +322,7 @@ end
 to go
   ; Verifica se há comida suficiente para a rainha produzir novas formigas
 
-
+  ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ;Monitorar a comida total a cada passo
   check-population set total-food-world sum [food] of patches
 ifelse total-food-world < 10 [
@@ -379,6 +387,10 @@ ifelse total-food-world < 10 [
     lose-energy
     reproduce-frogs
   ]
+
+   ; Gerencia os humanos
+  spawn-human                        ; Tenta criar novos humanos
+  mover-humano                       ; Move os humanos existentes
 
   diffuse chemical (diffusion-rate / 100) ; Difusão do rastro químico
   ask patches [
@@ -511,7 +523,7 @@ end
 
 ; === FORMIGAS OPERÁRIAS: BUSCA POR COMIDA ===
 
-
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 to look-for-food-worker
   if scarcity-mode? [
   rt random 90   ; Elas procuram em ângulos mais amplos
@@ -555,6 +567,7 @@ to look-for-food-worker
     rt 180                             ; Vira 180 graus para retornar ao ninho
     stop                               ; Finaliza o procedimento atual
   ]
+
 
   if (chemical >= 0.05) and (chemical < 2) [
     uphill-chemical                    ; Segue o rastro de feromônio
@@ -610,10 +623,29 @@ to return-to-nest
     set total-food-collected total-food-collected + 1
 
     rt 180                              ; Vira 180 graus para sair novamente
-  ][
+  ]
+
+  [
     set chemical chemical + 60          ; Deposita feromônio no caminho de volta
     uphill-nest-scent                   ; Move-se em direção ao ninho seguindo o gradiente
   ]
+
+  ; Verifica se há comida no patch atual
+  if ([food] of patch-here > 0) or ([food-counter?] of patch-here) [
+    ; ... código existente ...
+  ]
+
+  ; Verifica se há uma refeição deixada por um humano
+  let meal-here one-of meals-here
+  if meal-here != nobody [
+    set color yellow + 1  ; muda a cor para indicar que está carregando comida
+    ask meal-here [
+      die  ; a formiga pega/come a refeição
+    ]
+    rt 180  ; vira para retornar ao ninho
+    stop
+  ]
+
 end
 
 ; === MOVIMENTAÇÃO ===
@@ -647,7 +679,7 @@ to wiggle
   rt random 40                             ; Vira um ângulo aleatório à direita
   lt random 40                             ; Vira um ângulo aleatório à esquerda
   if not can-move? 1 or obstacle-ahead? [
-    rt 180                                ; Se não puder se mover, vira 180 graus
+    rt 180                                 ; Se não puder se mover, vira 180 graus
   ]
 end
 
@@ -680,6 +712,82 @@ to-report obstacle-ahead?
 
   ; Para outros agentes (rainha, sapos)
   report ([obstacle?] of p)
+end
+
+; === APARECIMENTO HUMANO ===
+to spawn-human
+  ; Só cria humanos se houver menos que um certo número deles
+  if count humans < 2 and random-float 1 < human-spawn-chance [
+    create-humans 1 [                       ; Cria apenas um humano de cada vez para não sobrecarregar
+      set color blue
+      set size 7
+      set shape "human"
+
+      ; Aparece apenas na área da cozinha
+      setxy random-pxcor-in-kitchen random-pycor-in-kitchen
+
+      set food-drop? random-float 1 < food-drop-chance
+
+      ; Se vai deixar comida, deixa imediatamente
+      if food-drop? [
+        ask patch-here [
+          sprout-meals 1 [
+            set color brown
+            set size 2
+            set shape "bread"
+          ]
+        ]
+      ]
+    ]
+  ]
+end
+
+
+; Procedimentos auxiliares para posicionar o humano na cozinha
+to-report random-pxcor-in-kitchen
+  report -5 + random 25
+end
+
+to-report random-pycor-in-kitchen
+  report max-pycor - 15 + random 10
+end
+
+; === MOVIMENTAÇÃO HUMANO ===
+to mover-humano
+  ask humans [
+    ; Gira aleatoriamente, mas com uma preferência para continuar na mesma direção
+    ifelse random 10 < 7 [
+      ; 70% do tempo continua na mesma direção
+      right random 10 - 5  ; pequeno ajuste na direção
+    ][
+      ; 30% do tempo faz uma mudança maior na direção
+      right random 90 - 45
+    ]
+
+    ; Verifica se pode se mover para frente
+    let p patch-ahead 1
+    ifelse p != nobody and not ([obstacle?] of p) [
+      fd 1  ; Move para frente se não houver obstáculo
+    ][
+      ; Se houver obstáculo, tenta encontrar uma direção livre
+      let found-path? false
+      let i 0
+      while [i < 8 and not found-path?] [
+        rt 45
+        set p patch-ahead 1
+        if p != nobody and not ([obstacle?] of p) [
+          set found-path? true
+          fd 1
+        ]
+        set i i + 1
+      ]
+    ]
+
+    ; Tempo de vida do humano (vai embora após alguns ticks)
+    if ticks mod 80 = 0 [
+      die
+    ]
+  ]
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -872,7 +980,7 @@ num-frogs
 num-frogs
 1
 50
-9.0
+18.0
 1
 1
 NIL
@@ -887,7 +995,7 @@ frog-energy
 frog-energy
 1
 100
-17.0
+36.0
 1
 1
 NIL
@@ -902,7 +1010,7 @@ frog-hunting-radius
 frog-hunting-radius
 1
 20
-3.0
+8.0
 1
 1
 NIL
@@ -1072,6 +1180,15 @@ Line -16777216 false 150 285 150 135
 Line -16777216 false 150 135 15 75
 Line -16777216 false 150 135 285 75
 
+bread
+false
+0
+Polygon -16777216 true false 140 145 170 250 245 190 234 122 247 107 260 79 260 55 245 40 215 32 185 40 155 31 122 41 108 53 28 118 110 115 140 130
+Polygon -7500403 true true 135 151 165 256 240 196 225 121 241 105 255 76 255 61 240 46 210 38 180 46 150 37 120 46 105 61 47 108 105 121 135 136
+Polygon -1 true false 60 181 45 256 165 256 150 181 165 166 180 136 180 121 165 106 135 98 105 106 75 97 46 107 29 118 30 136 45 166 60 181
+Polygon -16777216 false false 45 255 165 255 150 180 165 165 180 135 180 120 165 105 135 97 105 105 76 96 46 106 29 118 30 135 45 165 60 180
+Line -16777216 false 165 255 239 195
+
 bug
 true
 0
@@ -1218,6 +1335,15 @@ Rectangle -16777216 true false 120 210 180 285
 Polygon -7500403 true true 15 120 150 15 285 120
 Line -16777216 false 30 120 270 120
 
+human
+false
+0
+Circle -7500403 true true 110 5 80
+Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285 180 195 195 90
+Rectangle -7500403 true true 127 79 172 94
+Polygon -7500403 true true 195 90 240 150 225 180 165 105
+Polygon -7500403 true true 105 90 60 150 75 180 135 105
+
 leaf
 false
 0
@@ -1238,15 +1364,6 @@ pentagon
 false
 0
 Polygon -7500403 true true 150 15 15 120 60 285 240 285 285 120
-
-person
-false
-0
-Circle -7500403 true true 110 5 80
-Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285 180 195 195 90
-Rectangle -7500403 true true 127 79 172 94
-Polygon -7500403 true true 195 90 240 150 225 180 165 105
-Polygon -7500403 true true 105 90 60 150 75 180 135 105
 
 person service
 false
