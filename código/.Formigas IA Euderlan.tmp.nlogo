@@ -51,7 +51,7 @@ frogs-own[
 globals [
   total-food-collected ; Total de comida coletada pelo formigueiro
   min-ants             ; Número mínimo de formigas no formigueiro
-
+  ;
   total-food-world  ; Soma de toda comida disponível no ambiente
   scarcity-mode?    ; Verdadeiro quando a comida está escassa
 ]
@@ -314,7 +314,7 @@ end
 to go
   ; Verifica se há comida suficiente para a rainha produzir novas formigas
 
-
+  ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ;Monitorar a comida total a cada passo
   check-population set total-food-world sum [food] of patches
 ifelse total-food-world < 10 [
@@ -511,7 +511,7 @@ end
 
 ; === FORMIGAS OPERÁRIAS: BUSCA POR COMIDA ===
 
-
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 to look-for-food-worker
   if scarcity-mode? [
   rt random 90   ; Elas procuram em ângulos mais amplos
