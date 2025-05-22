@@ -29,7 +29,10 @@ Hissa:
 
 Lucas:
 5. Implementação de Predadores
+- Implementação das raças variaveis do predador ok
 - Criação e comportamentos turtle(Sapo) inicial ok
+- Refatoração da lógica de escassez de comida ok
+- Organização do Projeto
 
 Maria Clara:
 6. ciclo de vida das formigas
