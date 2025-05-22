@@ -3,12 +3,15 @@ breed [queens queen]           ; Rainha do formigueiro
 breed [worker-ants worker-ant] ; Formigas operárias (podem subir em móveis)
 breed [ground-ants ground-ant] ; Formigas que só coletam comida do chão
 breed [frogs frog]
+breed [humans human]           ; Humano que derruba comida pela cozinha
+breed [meals meal]             ; Comida que é derramada pelo humano
 
 ; === DEFINIÇÃO DE VARIÁVEIS ===
 turtles-own [
   carrying-food?    ; Indica se a formiga está carregando comida
   on-fire?          ; Indica se a formiga está pegando fogo
   fire-timer        ; Controla a duração da animação de fogo
+  food-drop?        ; Indica se o humano vai deixar comida
 ]
 
 queens-own [
@@ -19,12 +22,14 @@ queens-own [
 
 worker-ants-own [
   energy            ; Energia da formiga operária
-  lifespan          ; Tempo de vida da formiga operária
+  max-energy        ; Energia máxima da formiga
+  starvation-timer  ; Timer para morte por inanição
 ]
 
 ground-ants-own [
   energy            ; Energia da formiga de solo
-  lifespan          ; Tempo de vida da formiga de solo
+  max-energy        ; Energia máxima da formiga
+  starvation-timer  ; Timer para morte por inanição
 ]
 
 patches-own [
@@ -51,13 +56,18 @@ frogs-own[
 globals [
   total-food-collected ; Total de comida coletada pelo formigueiro
   min-ants             ; Número mínimo de formigas no formigueiro
+  total-food-world     ; Soma de toda comida disponível no ambiente
+  scarcity-mode?       ; Verdadeiro quando a comida está escassa
+  human-spawn-chance   ; Chance de um humano aparecer a cada tick
+  food-drop-chance     ; Chance de um humano deixar comida
+  frog-spawn-chance    ; NOVO: Chance de um sapo aparecer quando não há nenhum
 ]
 
 ; === PROCEDIMENTOS DE CONFIGURAÇÃO ===
 to setup
   clear-all                               ; Limpa o mundo
 
-  set min-ants 40                         ; Define o mínimo de formigas como 20
+  set min-ants 40                         ; Define o mínimo de formigas como 40
   set total-food-collected 0              ; Inicializa o contador de comida
 
   ; Define formatos para as formigas
@@ -83,8 +93,9 @@ to setup
     set size 2                            ; Define tamanho
     set color red                         ; Define cor inicial (vermelha)
     setxy 0 0                             ; Começa no ninho
-    set energy 5                         ; Define energia inicial
-    set lifespan 500                      ; Define tempo de vida
+    set energy 100                       ; Define energia inicial alta
+    set max-energy 100                    ; Define energia máxima
+    set starvation-timer 0                ; Inicializa timer de inanição
     set carrying-food? false              ; Inicialmente não carrega comida
     set on-fire? false                    ; Inicializa como não pegando fogo
     set fire-timer 0                      ; Inicializa timer de fogo
@@ -95,8 +106,9 @@ to setup
     set size 1.5                          ; Define tamanho (um pouco menor)
     set color orange                      ; Define cor inicial (laranja)
     setxy 0 0                             ; Começa no ninho
-    set energy 4                         ; Define energia inicial
-    set lifespan 400                      ; Define tempo de vida (menor)
+    set energy 80                         ; Define energia inicial
+    set max-energy 80                     ; Define energia máxima
+    set starvation-timer 0                ; Inicializa timer de inanição
     set carrying-food? false              ; Inicialmente não carrega comida
     set on-fire? false                    ; Inicializa como não pegando fogo
     set fire-timer 0                      ; Inicializa timer de fogo
@@ -118,6 +130,11 @@ to setup
     set on-fire? false                    ; Inicializa como não pegando fogo
     set fire-timer 0                      ; Inicializa timer de fogo
   ]
+
+  ; Inicializa as chances para o aparecimento do humano e sapos
+  set human-spawn-chance 0.01  ; 1% de chance por tick
+  set food-drop-chance 0.8     ; 80% de chance de deixar comida
+  set frog-spawn-chance 0.005  ; NOVO: 0.5% de chance de sapo aparecer quando não há nenhum
 
   reset-ticks                             ; Reseta o contador de tempo
 end
@@ -310,7 +327,15 @@ end
 ; === PROCEDIMENTO PRINCIPAL ===
 to go
   ; Verifica se há comida suficiente para a rainha produzir novas formigas
-  check-population
+
+  ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ;Monitorar a comida total a cada passo
+  check-population set total-food-world sum [food] of patches
+ifelse total-food-world < 10 [
+  set scarcity-mode? true
+] [
+  set scarcity-mode? false
+]
 
   ; Comportamento da rainha
   ask queens [
@@ -333,7 +358,7 @@ to go
       ]
       wiggle                           ; Movimento aleatório para simular procura
       fd 1                             ; Move-se para frente
-      decrease-lifespan                ; Diminui o tempo de vida
+      manage-energy-worker             ; NOVO: Gerencia energia em vez de diminuir lifespan
 
       ; Verifica se está no fogão - NOVO CÓDIGO
       check-stove
@@ -355,7 +380,7 @@ to go
       ]
       wiggle                           ; Movimento aleatório para simular procura
       fd 1                             ; Move-se para frente
-      decrease-lifespan                ; Diminui o tempo de vida
+      manage-energy-ground             ; NOVO: Gerencia energia em vez de diminuir lifespan
 
       ; Verifica se está no fogão - NOVO CÓDIGO
       check-stove
@@ -369,12 +394,79 @@ to go
     reproduce-frogs
   ]
 
+  ; NOVO: Verifica se precisa gerar novos sapos
+  spawn-new-frogs
+
+   ; Gerencia os humanos
+  spawn-human                        ; Tenta criar novos humanos
+  mover-humano                       ; Move os humanos existentes
+
   diffuse chemical (diffusion-rate / 100) ; Difusão do rastro químico
   ask patches [
     set chemical chemical * (100 - evaporation-rate) / 100 ; Evaporação
     recolor-patch
   ]
   tick                                  ; Avança um passo de tempo
+end
+
+; === NOVOS PROCEDIMENTOS PARA GERENCIAMENTO DE ENERGIA ===
+
+; Gerencia energia das formigas operárias
+to manage-energy-worker
+  ; Perde energia quando se move (mais devagar que antes)
+  set energy energy - 0.5
+
+  ; Se a energia estiver baixa, aumenta o timer de inanição
+  ifelse energy <= 20 [
+    set starvation-timer starvation-timer + 1
+  ] [
+    set starvation-timer 0  ; Reseta o timer se tiver energia suficiente
+  ]
+
+  ; Morre apenas se estiver em inanição por muito tempo
+  if starvation-timer > 100 [  ; 100 ticks sem energia suficiente
+    die
+  ]
+
+  ; Muda cor baseada na energia para feedback visual
+  if energy > 60 [
+    set color red  ; Saudável
+  ]
+  if energy <= 60 and energy > 20 [
+    set color red - 1  ; Cansada
+  ]
+  if energy <= 20 [
+    set color red - 2  ; Muito fraca
+  ]
+end
+
+; Gerencia energia das formigas de solo
+to manage-energy-ground
+  ; Perde energia quando se move (mais devagar que antes)
+  set energy energy - 0.4
+
+  ; Se a energia estiver baixa, aumenta o timer de inanição
+  ifelse energy <= 15 [
+    set starvation-timer starvation-timer + 1
+  ] [
+    set starvation-timer 0  ; Reseta o timer se tiver energia suficiente
+  ]
+
+  ; Morre apenas se estiver em inanição por muito tempo
+  if starvation-timer > 100 [  ; 100 ticks sem energia suficiente
+    die
+  ]
+
+  ; Muda cor baseada na energia para feedback visual
+  if energy > 50 [
+    set color orange  ; Saudável
+  ]
+  if energy <= 50 and energy > 15 [
+    set color orange - 1  ; Cansada
+  ]
+  if energy <= 15 [
+    set color orange - 2  ; Muito fraca
+  ]
 end
 
 ; === NOVOS PROCEDIMENTOS PARA ANIMAÇÃO DE FOGO ===
@@ -431,6 +523,7 @@ to move-queen
 end
 
 to reproduce
+  if scarcity-mode? [ stop ]  ; Interrompe reprodução se estiver em escassez
   ; Incrementa o timer de reprodução
   set reproduction-timer reproduction-timer + 1
 
@@ -449,8 +542,9 @@ to reproduce
         hatch-worker-ants 1 [
           set size 2
           set color red
-          set energy 50
-          set lifespan 500
+          set energy 100              ; NOVO: Energia inicial alta
+          set max-energy 100          ; NOVO: Energia máxima
+          set starvation-timer 0      ; NOVO: Timer de inanição
           set carrying-food? false
           set on-fire? false          ; Inicializa como não pegando fogo
           set fire-timer 0            ; Inicializa timer de fogo
@@ -463,8 +557,9 @@ to reproduce
         hatch-ground-ants 1 [
           set size 1.5
           set color orange
-          set energy 40
-          set lifespan 400
+          set energy 80               ; NOVO: Energia inicial
+          set max-energy 80           ; NOVO: Energia máxima
+          set starvation-timer 0      ; NOVO: Timer de inanição
           set carrying-food? false
           set on-fire? false          ; Inicializa como não pegando fogo
           set fire-timer 0            ; Inicializa timer de fogo
@@ -491,14 +586,15 @@ to check-population
   ]
 end
 
-; === FORMIGAS: DIMINUIÇÃO DO TEMPO DE VIDA ===
-to decrease-lifespan
-  set lifespan lifespan - 1
-  if lifespan <= 0 [ die ]
-end
-
 ; === FORMIGAS OPERÁRIAS: BUSCA POR COMIDA ===
+
+;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 to look-for-food-worker
+  if scarcity-mode? [
+  rt random 90   ; Elas procuram em ângulos mais amplos
+  fd 2           ; Andam mais longe antes de desistir
+]
+
   ; Formigas operárias podem pegar comida de qualquer lugar (chão ou móveis)
   if ([food] of patch-here > 0) or ([food-counter?] of patch-here) [
 
@@ -531,11 +627,16 @@ to look-for-food-worker
       ]
     ]
 
+    ; NOVO: Ganha energia ao encontrar comida
+    set energy min list (energy + 30) max-energy
+    set starvation-timer 0  ; Reseta timer de inanição
+
     set carrying-food? true            ; Indica que está carregando comida
     set color yellow                   ; Muda a cor para indicar que está carregando comida
     rt 180                             ; Vira 180 graus para retornar ao ninho
     stop                               ; Finaliza o procedimento atual
   ]
+
 
   if (chemical >= 0.05) and (chemical < 2) [
     uphill-chemical                    ; Segue o rastro de feromônio
@@ -544,6 +645,12 @@ end
 
 ; === FORMIGAS DE SOLO: BUSCA POR COMIDA ===
 to look-for-food-ground
+  ;!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  if scarcity-mode? [
+  rt random 90   ; Elas procuram em ângulos mais amplos
+  fd 2           ; Andam mais longe antes de desistir
+]
+
   ; Formigas de solo só podem pegar comida do chão (não em móveis)
   if not [movel?] of patch-here [
     if ([food] of patch-here > 0) [
@@ -554,6 +661,10 @@ to look-for-food-ground
           if food-source-number > 0 [ set food-source-number 0 ]
         ]
       ]
+
+      ; NOVO: Ganha energia ao encontrar comida
+      set energy min list (energy + 25) max-energy
+      set starvation-timer 0  ; Reseta timer de inanição
 
       set carrying-food? true          ; Indica que está carregando comida
       set color yellow                 ; Muda a cor para indicar que está carregando comida
@@ -571,24 +682,54 @@ to return-to-nest
   ifelse nest? [
     set carrying-food? false
 
-    ; Formigas operárias são vermelhas
+    ; NOVO: Ganha energia ao retornar ao ninho com comida
     if breed = worker-ants [
       set color red
+      set energy min list (energy + 20) max-energy
     ]
 
-    ; Formigas de solo são laranjas
     if breed = ground-ants [
       set color orange
+      set energy min list (energy + 15) max-energy
     ]
 
     ; Incrementa o contador de comida coletada
     set total-food-collected total-food-collected + 1
 
     rt 180                              ; Vira 180 graus para sair novamente
-  ][
+  ]
+
+  [
     set chemical chemical + 60          ; Deposita feromônio no caminho de volta
     uphill-nest-scent                   ; Move-se em direção ao ninho seguindo o gradiente
   ]
+
+  ; Verifica se há comida no patch atual
+  if ([food] of patch-here > 0) or ([food-counter?] of patch-here) [
+    ; ... código existente ...
+  ]
+
+  ; Verifica se há uma refeição deixada por um humano
+  let meal-here one-of meals-here
+  if meal-here != nobody [
+    set color yellow + 1  ; muda a cor para indicar que está carregando comida
+
+    ; NOVO: Ganha energia ao encontrar refeição humana
+    if breed = worker-ants [
+      set energy min list (energy + 35) max-energy
+    ]
+    if breed = ground-ants [
+      set energy min list (energy + 30) max-energy
+    ]
+    set starvation-timer 0  ; Reseta timer de inanição
+
+    ask meal-here [
+      die  ; a formiga pega/come a refeição
+    ]
+    rt 180  ; vira para retornar ao ninho
+    stop
+  ]
+
 end
 
 ; === MOVIMENTAÇÃO ===
@@ -622,7 +763,7 @@ to wiggle
   rt random 40                             ; Vira um ângulo aleatório à direita
   lt random 40                             ; Vira um ângulo aleatório à esquerda
   if not can-move? 1 or obstacle-ahead? [
-    rt 180                                ; Se não puder se mover, vira 180 graus
+    rt 180                                 ; Se não puder se mover, vira 180 graus
   ]
 end
 
@@ -657,6 +798,111 @@ to-report obstacle-ahead?
   report ([obstacle?] of p)
 end
 
+; === APARECIMENTO DE NOVOS SAPOS ===
+to spawn-new-frogs
+  ; Só tenta gerar novos sapos se não houver nenhum no ambiente
+  if count frogs = 0 [
+    ; Testa a chance de aparecer um novo sapo
+    if random-float 1 < frog-spawn-chance [
+      create-frogs 1 [
+        set shape "frog top"
+        set color green
+        set size 3
+        set energy frog-energy
+        set hunting-radius frog-hunting-radius
+        set on-fire? false
+        set fire-timer 0
+
+        ; Posiciona longe do ninho (mínimo 15 unidades de distância)
+        let safe-distance false
+        while [not safe-distance] [
+          setxy random-xcor random-ycor
+          ; Verifica se está longe o suficiente do ninho e não está em obstáculo
+          if distancexy 0 0 > 15 and not [obstacle?] of patch-here [
+            set safe-distance true
+          ]
+        ]
+      ]
+    ]
+  ]
+end
+
+; === APARECIMENTO HUMANO ===
+to spawn-human
+  ; Só cria humanos se houver menos que um certo número deles
+  if count humans < 2 and random-float 1 < human-spawn-chance [
+    create-humans 1 [                       ; Cria apenas um humano de cada vez para não sobrecarregar
+      set color blue
+      set size 7
+      set shape "human"
+
+      ; Aparece apenas na área da cozinha
+      setxy random-pxcor-in-kitchen random-pycor-in-kitchen
+
+      set food-drop? random-float 1 < food-drop-chance
+
+      ; Se vai deixar comida, deixa imediatamente
+      if food-drop? [
+        ask patch-here [
+          sprout-meals 1 [
+            set color brown
+            set size 2
+            set shape "bread"
+          ]
+        ]
+      ]
+    ]
+  ]
+end
+
+
+; Procedimentos auxiliares para posicionar o humano na cozinha
+to-report random-pxcor-in-kitchen
+  report -5 + random 25
+end
+
+to-report random-pycor-in-kitchen
+  report max-pycor - 15 + random 10
+end
+
+; === MOVIMENTAÇÃO HUMANO ===
+to mover-humano
+  ask humans [
+    ; Gira aleatoriamente, mas com uma preferência para continuar na mesma direção
+    ifelse random 10 < 7 [
+      ; 70% do tempo continua na mesma direção
+      right random 10 - 5  ; pequeno ajuste na direção
+    ][
+      ; 30% do tempo faz uma mudança maior na direção
+      right random 90 - 45
+    ]
+
+    ; Verifica se pode se mover para frente
+    let p patch-ahead 1
+    ifelse p != nobody and not ([obstacle?] of p) [
+      fd 1  ; Move para frente se não houver obstáculo
+    ][
+      ; Se houver obstáculo, tenta encontrar uma direção livre
+      let found-path? false
+      let i 0
+      while [i < 8 and not found-path?] [
+        rt 45
+        set p patch-ahead 1
+        if p != nobody and not ([obstacle?] of p) [
+          set found-path? true
+          fd 1
+        ]
+        set i i + 1
+      ]
+    ]
+
+    ; Tempo de vida do humano (vai embora após alguns ticks)
+    if ticks mod 80 = 0 [
+      die
+    ]
+  ]
+end
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; PROCEDIMENTOS DOS SAPOS: CAÇA E REPRODUÇÃO   ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -665,22 +911,39 @@ end
 ; se colide, "come" (mata) e ganha energia.
 ; Se não encontra, movimenta-se aleatoriamente.
 to hunt-ants
+  ; NOVO: Verifica se está muito próximo do ninho
+  let distance-to-nest distancexy 0 0
+
+  ; Se estiver muito próximo do ninho (raio de 8), afasta-se
+  if distance-to-nest < 8 [
+    ; Vira-se para longe do centro do ninho
+    face patch 0 0
+    rt 180  ; Vira 180 graus para se afastar
+    fd 2    ; Move-se mais rapidamente para longe
+    stop    ; Para a execução aqui, não caça nesta rodada
+  ]
+
   ; Caça qualquer tipo de formiga (operária ou de solo) que não esteja carregando comida
-  let target one-of (turtle-set worker-ants ground-ants) with [carrying-food? = false] in-radius hunting-radius
+  ; MAS APENAS FORA DO NINHO
+  let target one-of (turtle-set worker-ants ground-ants) with [
+    carrying-food? = false and
+    not [nest?] of patch-here and
+    distancexy 0 0 > 8  ; Só caça formigas que estão longe do ninho
+  ] in-radius hunting-radius
 
   ifelse target != nobody [                   ; Se encontrou ao menos uma formiga
     face target                               ; Vira-se na direção da formiga alvo
     fd 1                                      ; Avança 1 unidade em direção a ela
 
-    ; Verifica se há formigas operárias aqui
-    if any? worker-ants-here with [carrying-food? = false] [
-      ask one-of worker-ants-here with [carrying-food? = false] [ die ]
+    ; Verifica se há formigas operárias aqui (e não está no ninho)
+    if any? worker-ants-here with [carrying-food? = false and not [nest?] of patch-here] [
+      ask one-of worker-ants-here with [carrying-food? = false and not [nest?] of patch-here] [ die ]
       set energy energy + 20
     ]
 
-    ; Verifica se há formigas de solo aqui
-    if any? ground-ants-here with [carrying-food? = false] [
-      ask one-of ground-ants-here with [carrying-food? = false] [ die ]
+    ; Verifica se há formigas de solo aqui (e não está no ninho)
+    if any? ground-ants-here with [carrying-food? = false and not [nest?] of patch-here] [
+      ask one-of ground-ants-here with [carrying-food? = false and not [nest?] of patch-here] [ die ]
       set energy energy + 15  ; Formigas de solo dão menos energia
     ]
   ] [
@@ -688,6 +951,13 @@ to hunt-ants
     ; Gira aleatoriamente até 60° para a direita
     rt random 60
     lt random 60  ; E até 60° para a esquerda
+
+    ; NOVO: Se estiver se aproximando muito do ninho, vira para longe
+    let next-patch patch-ahead 1
+    if next-patch != nobody and [distancexy 0 0] of next-patch < 8 [
+      rt 90  ; Vira 90 graus para evitar o ninho
+    ]
+
     fd 1          ; Avança 1 unidade (vagueando)
   ]
 end
@@ -812,7 +1082,7 @@ population
 population
 0.0
 200.0
-72.0
+151.0
 1.0
 1
 NIL
@@ -847,7 +1117,7 @@ num-frogs
 num-frogs
 1
 50
-1.0
+18.0
 1
 1
 NIL
@@ -862,7 +1132,7 @@ frog-energy
 frog-energy
 1
 100
-34.0
+36.0
 1
 1
 NIL
@@ -877,7 +1147,7 @@ frog-hunting-radius
 frog-hunting-radius
 1
 20
-7.0
+8.0
 1
 1
 NIL
@@ -1047,6 +1317,15 @@ Line -16777216 false 150 285 150 135
 Line -16777216 false 150 135 15 75
 Line -16777216 false 150 135 285 75
 
+bread
+false
+0
+Polygon -16777216 true false 140 145 170 250 245 190 234 122 247 107 260 79 260 55 245 40 215 32 185 40 155 31 122 41 108 53 28 118 110 115 140 130
+Polygon -7500403 true true 135 151 165 256 240 196 225 121 241 105 255 76 255 61 240 46 210 38 180 46 150 37 120 46 105 61 47 108 105 121 135 136
+Polygon -1 true false 60 181 45 256 165 256 150 181 165 166 180 136 180 121 165 106 135 98 105 106 75 97 46 107 29 118 30 136 45 166 60 181
+Polygon -16777216 false false 45 255 165 255 150 180 165 165 180 135 180 120 165 105 135 97 105 105 76 96 46 106 29 118 30 135 45 165 60 180
+Line -16777216 false 165 255 239 195
+
 bug
 true
 0
@@ -1193,6 +1472,15 @@ Rectangle -16777216 true false 120 210 180 285
 Polygon -7500403 true true 15 120 150 15 285 120
 Line -16777216 false 30 120 270 120
 
+human
+false
+0
+Circle -7500403 true true 110 5 80
+Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285 180 195 195 90
+Rectangle -7500403 true true 127 79 172 94
+Polygon -7500403 true true 195 90 240 150 225 180 165 105
+Polygon -7500403 true true 105 90 60 150 75 180 135 105
+
 leaf
 false
 0
@@ -1213,15 +1501,6 @@ pentagon
 false
 0
 Polygon -7500403 true true 150 15 15 120 60 285 240 285 285 120
-
-person
-false
-0
-Circle -7500403 true true 110 5 80
-Polygon -7500403 true true 105 90 120 195 90 285 105 300 135 300 150 225 165 300 195 300 210 285 180 195 195 90
-Rectangle -7500403 true true 127 79 172 94
-Polygon -7500403 true true 195 90 240 150 225 180 165 105
-Polygon -7500403 true true 105 90 60 150 75 180 135 105
 
 person service
 false
