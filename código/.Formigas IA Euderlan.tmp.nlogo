@@ -8,7 +8,7 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;  DEFINIÇÃO DAS RAÇAS (AGENTES)   ;;
+;; 1. DEFINIÇÃO DAS RAÇAS (AGENTES)   ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 breed [queens queen]           ; Rainha do formigueiro
 breed [worker-ants worker-ant] ; Formigas operárias (podem subir em móveis)
@@ -18,7 +18,7 @@ breed [humans human]           ; Humano que derruba comida pela cozinha
 breed [meals meal]             ; Comida que é derramada pelo humano
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; VARIÁVEIS PRÓPRIAS DOS AGENTES  ;;
+;; 2. VARIÁVEIS PRÓPRIAS DOS AGENTES  ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 turtles-own [
   carrying-food?    ; Indica se a formiga está carregando comida
@@ -52,7 +52,7 @@ frogs-own[
 ]
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; VARIÁVEIS DOS PEDAÇOS (PATCHES) ;;
+;; 3. VARIÁVEIS DOS PEDAÇOS (PATCHES) ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 patches-own [
   chemical           ; Intensidade do rastro químico deixado pelas formigas
@@ -70,7 +70,7 @@ patches-own [
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; VARIÁVEIS GLOBAIS DO MODELO ;;
+;; 4. VARIÁVEIS GLOBAIS DO MODELO ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 globals [
   total-food-collected ; Total de comida coletada pelo formigueiro
@@ -346,7 +346,7 @@ to recolor-patch
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;  PROCEDIMENTO PRINCIPAL ;;
+;; 5. PROCEDIMENTO PRINCIPAL ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to go
   ; Verifica se há comida suficiente para a rainha produzir novas formigas
@@ -431,7 +431,7 @@ end
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; NOVOS PROCEDIMENTOS PARA GERENCIAMENTO DE ENERGIA   ;;
+;; OVOS PROCEDIMENTOS PARA GERENCIAMENTO DE ENERGIA   ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; Gerencia energia das formigas operárias
