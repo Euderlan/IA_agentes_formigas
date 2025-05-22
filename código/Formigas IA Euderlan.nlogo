@@ -2,7 +2,7 @@
 breed [queens queen]           ; Rainha do formigueiro
 breed [worker-ants worker-ant] ; Formigas operárias (podem subir em móveis)
 breed [ground-ants ground-ant] ; Formigas que só coletam comida do chão
-breed [frogs frog]
+breed [frogs frog]             ; Sapos predadores de formigas
 breed [humans human]           ; Humano que derruba comida pela cozinha
 breed [meals meal]             ; Comida que é derramada pelo humano
 
@@ -595,6 +595,21 @@ to look-for-food-worker
   fd 2           ; Andam mais longe antes de desistir
 ]
 
+  ; Verificar refeições deixadas por humanos PRIMEIRO
+let meal-here one-of meals-here
+if meal-here != nobody [
+  set carrying-food? true
+  set color yellow
+
+  ; Ganha energia ao encontrar refeição humana
+  set energy min list (energy + 35) max-energy  ; Operárias ganham um pouco mais
+  set starvation-timer 0
+
+  ask meal-here [ die ]  ; Remove a refeição
+  rt 180  ; Vira para retornar ao ninho
+  stop
+]
+
   ; Formigas operárias podem pegar comida de qualquer lugar (chão ou móveis)
   if ([food] of patch-here > 0) or ([food-counter?] of patch-here) [
 
@@ -650,7 +665,20 @@ to look-for-food-ground
   rt random 90   ; Elas procuram em ângulos mais amplos
   fd 2           ; Andam mais longe antes de desistir
 ]
+; Verificar refeições deixadas por humanos PRIMEIRO
+  let meal-here one-of meals-here
+  if meal-here != nobody [
+    set carrying-food? true
+    set color yellow
 
+    ; Ganha energia ao encontrar refeição humana
+    set energy min list (energy + 30) max-energy
+    set starvation-timer 0
+
+    ask meal-here [ die ]  ; Remove a refeição
+    rt 180  ; Vira para retornar ao ninho
+    stop
+  ]
   ; Formigas de solo só podem pegar comida do chão (não em móveis)
   if not [movel?] of patch-here [
     if ([food] of patch-here > 0) [
@@ -704,31 +732,6 @@ to return-to-nest
     uphill-nest-scent                   ; Move-se em direção ao ninho seguindo o gradiente
   ]
 
-  ; Verifica se há comida no patch atual
-  if ([food] of patch-here > 0) or ([food-counter?] of patch-here) [
-    ; ... código existente ...
-  ]
-
-  ; Verifica se há uma refeição deixada por um humano
-  let meal-here one-of meals-here
-  if meal-here != nobody [
-    set color yellow + 1  ; muda a cor para indicar que está carregando comida
-
-    ; NOVO: Ganha energia ao encontrar refeição humana
-    if breed = worker-ants [
-      set energy min list (energy + 35) max-energy
-    ]
-    if breed = ground-ants [
-      set energy min list (energy + 30) max-energy
-    ]
-    set starvation-timer 0  ; Reseta timer de inanição
-
-    ask meal-here [
-      die  ; a formiga pega/come a refeição
-    ]
-    rt 180  ; vira para retornar ao ninho
-    stop
-  ]
 
 end
 
