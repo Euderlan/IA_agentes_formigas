@@ -12,10 +12,10 @@
 ## Universidade Federal do Maranhão  
 ### Engenharia da Computação  
 ### Disciplina: **EECP0008 - INTELIGÊNCIA ARTIFICIAL (GRADUAÇÃO)**  
-**Monitores:** Euderlan Freire, Hissa Bárbara, Lucas Silva
+**Discentes:** Euderlan Freire, Hissa Bárbara, Lucas Silva
   
 
-**E-mail:** euderlan.freire@discente.ufma.br
+**E-mail:** euderlan.freire@discente.ufma.br, hissa.barbara@discente.ufma.br, computer.lucas2@gmail.com
 
 **Semestre:** 2025.1  
 
