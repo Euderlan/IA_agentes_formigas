@@ -100,8 +100,8 @@ _Projeto Formigueiro inteliguente<SeuNome>/
 ### Reconhecimentos e Direitos Autorais
 
 ```
-@autor:                [Euderlan Freire da Silva Abreu]
-@contato:              [Seu Email]
+@autor:                [Euderlan Freire, Hissa Bárbara, Lucas Silva]
+@contato:              [euderlan.freire@discente.ufma.br, hissa.barbara@discente.ufma.br, computer.lucas2@gmail.com]
 @data última versão:   22/05/2025
 @versão:               1.0
 @Agradecimentos:       Universidade Federal do Maranhão (UFMA),
